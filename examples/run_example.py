@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from cint_ref.app import create_app  # noqa: E402
 from cint_ref.config import Settings  # noqa: E402
 from cint_ref.db import Database  # noqa: E402
-from cint_ref.respondent_flow import SurveyBinding  # noqa: E402
+from cint_ref.respondent_flow import SurveyBinding, complete_when_answered  # noqa: E402
 from fake_cint.s2s import FakeS2S  # noqa: E402
 
 SURVEY = "3f1c9a52-7d1e-4c0b-9a51-2f8e6b1d0a11"
@@ -29,7 +29,8 @@ def main() -> None:
     settings = Settings(database_url=os.environ.get(
         "DATABASE_URL", "postgresql:///edsl_cint_reference_test"))
     Database(settings.database_url).migrate()
-    bindings = {SURVEY: SurveyBinding(SURVEY)}
+    # Example host decision: complete once 'pet' is answered (the real one is the host's).
+    bindings = {SURVEY: SurveyBinding(SURVEY, decide=complete_when_answered(["pet"]))}
     cint = FakeS2S(settings.s2s_api_key)
 
     def boot():

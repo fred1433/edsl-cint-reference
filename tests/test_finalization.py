@@ -35,7 +35,8 @@ def test_request_that_never_left_is_retried_safely(h, fake_s2s):
 
 
 def test_conflicting_decisions_keep_one_and_report_the_other(h, fake_s2s):
-    rid = h.answered()  # survey logic decided 'complete'
+    rid = h.answered()
+    assert h.flow.decide(rid)["outcome"] == "complete"   # host decision fixed
     row = h.flow.record_outcome(rid, Outcome.QUALITY_TERMINATE, "quality_check")
     assert row["outcome"] == "complete"
     assert row["outcome_conflicts"] == [{"outcome": "quality_terminate", "decided_by": "quality_check"}]
@@ -44,7 +45,8 @@ def test_conflicting_decisions_keep_one_and_report_the_other(h, fake_s2s):
 
 
 def test_crash_after_saving_is_found_and_finished_after_restart(h, fake_s2s):
-    rid = h.answered()           # saved, outcome decided, nothing sent
+    rid = h.answered()
+    h.flow.decide(rid)           # saved, outcome decided, nothing sent
     h.start()                    # process restart
     report = h.flow.recover()
     assert report["sent"] == [f"{rid}:confirmed"]
@@ -107,6 +109,34 @@ def test_requests_that_never_left_do_not_exhaust_attempts(h, fake_s2s):
 
 def test_recovery_can_be_scoped_to_given_rids(h, fake_s2s):
     mine, other = h.answered(), h.answered()
+    h.flow.decide(mine), h.flow.decide(other)
     report = h.flow.recover(only_rids=[mine])
     assert report["sent"] == [f"{mine}:confirmed"]
     assert h.flow.session_state(other)["transition_state"] == "pending"
+
+
+def test_late_reply_of_an_expired_attempt_changes_nothing(settings, fake_s2s):
+    from tests.conftest import Harness
+
+    h = Harness(settings, fake_s2s)
+    rid = h.answered()
+    fake_s2s.inject("hold")
+    replies = []
+    worker = threading.Thread(target=lambda: replies.append(h.finish(rid)))
+    worker.start()
+    assert fake_s2s.holding.wait(5)                 # attempt A is in Cint's hands
+
+    other = Harness(settings, fake_s2s)
+    other.start(in_flight_lease_seconds=0)
+    fake_s2s.inject("not_sent")                     # B's retry cannot reach Cint
+    other.flow.recover()                            # A expires, row becomes unknown
+    other.flow.operator_resolve(rid, confirmed=False, operator="ops")  # another actor decides
+
+    fake_s2s.release.set()                          # A's delayed 200 finally arrives
+    worker.join(5)
+    reply = replies[0]
+    assert reply.status_code == 202 and "location" not in reply.headers
+    assert reply.json()["state"] == "failed"
+    row = h.flow.session_state(rid)
+    assert row["transition_state"] == "failed" and row["return_authorized"] is False
+    assert row["late_replies"][0]["would_be"] == "confirmed"

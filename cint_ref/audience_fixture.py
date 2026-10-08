@@ -5,6 +5,9 @@ quotas" (2025-12-18): question 639, options "1", "2", "3", quotas 67% / 33%. Wha
 question 639 means in a given account must be checked against that account's
 question library. Identifiers below are placeholders.
 
+The request is validated against the request schema extracted unchanged from the
+pinned spec (contracts/create_draft_target_group.json, tests/test_contract.py).
+
 Translating a Prolific filter into Cint profiling is a semantic mapping (questions,
 options, conditions, quotas), not a field rename. After launch, profiles are changed
 with manage_target_group_profiles, which REPLACES all profiles: any profile left out
@@ -14,7 +17,7 @@ of the request is deleted.
 from __future__ import annotations
 
 
-def draft_target_group(live_url: str, security_client_id: str, completes_goal: int) -> dict:
+def draft_target_group(live_url: str, security_client_id: int, completes_goal: int) -> dict:
     return {
         "name": "EDSL human survey (illustrative)",
         "business_unit_id": 0,                                   # placeholder
@@ -29,8 +32,24 @@ def draft_target_group(live_url: str, security_client_id: str, completes_goal: i
             "end_at": "2026-11-16T23:59:59.000Z",
         },
         "fielding_assistant_assignment": {},
-        # S2S prerequisite: the target group uses security_client_id as client_id.
+        # Count finished interviews toward completes_goal. Left out, the spec says the
+        # strategy defaults to "prescreens" when no Fielding Assistant module is on,
+        # i.e. respondents who pass screening would count.
+        "filling_strategy": "completes",
+        # S2S prerequisite: the target group uses security_client_id as client_id
+        # (TargetGroupClientID: integer in the spec).
         "client_id": security_client_id,
+        # Test supplier only, as in Cint's guide "How to use the test supplier":
+        # supplier 980 in one group, open exchange contribution at 0%.
+        "allocations": {
+            "open_exchange_allocations": {
+                "blocked_supplier_ids": [],
+                "groups": [{"group_name": "Test supplier only", "min_percentage": 0,
+                            "max_percentage": 100, "suppliers": ["980"]}],
+                "exchange_min_percentage": 0,
+                "exchange_max_percentage": 0,
+            }
+        },
         "live_url": live_url,
         "profiling": {
             "profile_adjustment_type": "percentage",

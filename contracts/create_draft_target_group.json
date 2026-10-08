@@ -1,0 +1,1279 @@
+{
+ "x-source": {
+  "url": "https://developer.cint.com/demand/specs/demand_openapi_v1_2025-12-18.yaml",
+  "sha256": "008c54ee13d77341026cb9d5cdd06d2493350da66923b243e6d70f79ee904940",
+  "root": "CreateDraftTargetGroupRequest"
+ },
+ "$ref": "#/components/schemas/CreateDraftTargetGroupRequest",
+ "components": {
+  "schemas": {
+   "AllocationTemplateReference": {
+    "type": "object",
+    "title": "Allocation template reference",
+    "required": [
+     "id",
+     "type"
+    ],
+    "properties": {
+     "id": {
+      "$ref": "#/components/schemas/TemplateID"
+     },
+     "type": {
+      "type": "string",
+      "enum": [
+       "global",
+       "account",
+       "country"
+      ]
+     }
+    }
+   },
+   "BusinessUnitIDAsInteger": {
+    "type": "integer"
+   },
+   "CompletesGoal": {
+    "type": "number",
+    "format": "int",
+    "minimum": 1
+   },
+   "CreateDraftAllocationSpecificationGroupRequest": {
+    "type": "object",
+    "required": [
+     "open_exchange_allocations"
+    ],
+    "properties": {
+     "open_exchange_allocations": {
+      "type": "object",
+      "required": [
+       "blocked_supplier_ids",
+       "exchange_max_percentage",
+       "exchange_min_percentage",
+       "groups"
+      ],
+      "properties": {
+       "blocked_supplier_ids": {
+        "$ref": "#/components/schemas/SupplierIds"
+       },
+       "exchange_min_percentage": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+       },
+       "exchange_max_percentage": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+       },
+       "groups": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "required": [
+          "group_name",
+          "min_percentage",
+          "max_percentage",
+          "suppliers"
+         ],
+         "properties": {
+          "group_name": {
+           "type": "string"
+          },
+          "min_percentage": {
+           "type": "integer",
+           "minimum": 0,
+           "maximum": 100
+          },
+          "max_percentage": {
+           "type": "integer",
+           "minimum": 0,
+           "maximum": 100
+          },
+          "suppliers": {
+           "$ref": "#/components/schemas/SupplierIds"
+          }
+         }
+        }
+       }
+      }
+     },
+     "private_exchange_allocations": {
+      "type": "object",
+      "required": [
+       "blocked_supplier_ids",
+       "groups"
+      ],
+      "properties": {
+       "blocked_supplier_ids": {
+        "$ref": "#/components/schemas/SupplierIds"
+       },
+       "groups": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "required": [
+          "group_name",
+          "min_percentage",
+          "max_percentage",
+          "supplier_id"
+         ],
+         "properties": {
+          "group_name": {
+           "type": "string"
+          },
+          "min_percentage": {
+           "type": "integer",
+           "minimum": 0,
+           "maximum": 100
+          },
+          "max_percentage": {
+           "type": "integer",
+           "minimum": 0,
+           "maximum": 100
+          },
+          "supplier_id": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "CreateDraftTargetGroupRequest": {
+    "type": "object",
+    "oneOf": [
+     {
+      "required": [
+       "allocations"
+      ]
+     },
+     {
+      "required": [
+       "allocation_template"
+      ]
+     }
+    ],
+    "required": [
+     "name",
+     "business_unit_id",
+     "locale",
+     "project_manager_id",
+     "fielding_specification",
+     "fielding_assistant_assignment",
+     "completes_goal",
+     "collects_pii",
+     "expected_length_of_interview_minutes",
+     "expected_incidence_rate"
+    ],
+    "properties": {
+     "name": {
+      "$ref": "#/components/schemas/TargetGroupName"
+     },
+     "business_unit_id": {
+      "$ref": "#/components/schemas/BusinessUnitIDAsInteger"
+     },
+     "locale": {
+      "$ref": "#/components/schemas/LocaleCodeWithReference"
+     },
+     "collects_pii": {
+      "$ref": "#/components/schemas/TargetGroupCollectsPII"
+     },
+     "study_type_code": {
+      "$ref": "#/components/schemas/StudyTypeCodeWithReference"
+     },
+     "industry_code": {
+      "$ref": "#/components/schemas/IndustryCodeWithReference"
+     },
+     "cost_per_interview": {
+      "$ref": "#/components/schemas/TargetGroupClientCpiMonetaryAmountRequestModel"
+     },
+     "client_cost_per_interview_note": {
+      "$ref": "#/components/schemas/TargetGroupClientCpiMonetaryAmountRequestModel"
+     },
+     "project_manager_id": {
+      "$ref": "#/components/schemas/UserID"
+     },
+     "client_id": {
+      "$ref": "#/components/schemas/TargetGroupClientID"
+     },
+     "fielding_specification": {
+      "$ref": "#/components/schemas/TargetGroupFieldingSpecification"
+     },
+     "completes_goal": {
+      "$ref": "#/components/schemas/CompletesGoal"
+     },
+     "expected_length_of_interview_minutes": {
+      "$ref": "#/components/schemas/TargetGroupExpectedLengthOfInterview"
+     },
+     "expected_incidence_rate": {
+      "$ref": "#/components/schemas/TargetGroupExpectedIncidenceRate"
+     },
+     "exclusion": {
+      "$ref": "#/components/schemas/TargetGroupExclusionObject"
+     },
+     "respondent_activity_exclusions": {
+      "$ref": "#/components/schemas/TargetGroupRespondentActivityExclusionsRequest"
+     },
+     "industry_lockout_code": {
+      "$ref": "#/components/schemas/TargetGroupIndustryLockoutCodeWithReference"
+     },
+     "live_url": {
+      "nullable": true,
+      "maxLength": 3000,
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TargetGroupLiveUrl"
+       }
+      ]
+     },
+     "test_url": {
+      "nullable": true,
+      "maxLength": 3000,
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TargetGroupTestUrl"
+       }
+      ]
+     },
+     "fielding_assistant_assignment": {
+      "$ref": "#/components/schemas/FieldingAssistantModulesAssignmentRequestModel"
+     },
+     "filling_strategy": {
+      "nullable": true,
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/FillingStrategy"
+       }
+      ]
+     },
+     "profiling": {
+      "$ref": "#/components/schemas/ProfilingRequest"
+     },
+     "allocations": {
+      "$ref": "#/components/schemas/CreateDraftAllocationSpecificationGroupRequest"
+     },
+     "allocation_template": {
+      "$ref": "#/components/schemas/AllocationTemplateReference"
+     },
+     "re_entry_configuration": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/ReEntryConfiguration"
+       }
+      ]
+     },
+     "target_group_customer_reference_number": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TargetGroupCustomerReferenceNumber"
+       },
+       {
+        "nullable": true
+       }
+      ]
+     }
+    }
+   },
+   "CurrencyCode": {
+    "type": "string"
+   },
+   "ExclusionEntityID": {
+    "type": "string"
+   },
+   "ExclusionEntityList": {
+    "type": "object",
+    "properties": {
+     "entity_type": {
+      "$ref": "#/components/schemas/ExclusionEntityType"
+     },
+     "entity_ids": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/ExclusionEntityID"
+      }
+     }
+    }
+   },
+   "ExclusionEntityType": {
+    "type": "string",
+    "enum": [
+     "RID",
+     "CID"
+    ]
+   },
+   "FieldingAssistantModulesAssignmentRequestModel": {
+    "title": "Fielding Assistant modules assignment",
+    "type": "object",
+    "properties": {
+     "pricing": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/ModuleDynamicPricing"
+       },
+       {
+        "$ref": "#/components/schemas/ModuleRateCardPricing"
+       }
+      ],
+      "nullable": true
+     },
+     "quota_overlay": {
+      "$ref": "#/components/schemas/ModuleQuotaOverlay"
+     },
+     "pacing": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/ModuleLinearPacing"
+       },
+       {
+        "$ref": "#/components/schemas/ModuleAdaptivePacing"
+       },
+       {
+        "$ref": "#/components/schemas/ModuleGeminiPacing"
+       }
+      ],
+      "nullable": true
+     },
+     "soft_launch": {
+      "$ref": "#/components/schemas/ModuleSoftLaunch"
+     }
+    }
+   },
+   "FillingStrategy": {
+    "type": "string",
+    "enum": [
+     "automated",
+     "prescreens",
+     "completes"
+    ]
+   },
+   "IncrementInterval": {
+    "type": "string",
+    "format": "duration"
+   },
+   "IndustryCodeWithReference": {
+    "type": "string",
+    "default": "other"
+   },
+   "InterlockProfileConditionsV3": {
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/ProfileTargetsSelectionConditionsV3"
+     },
+     {
+      "$ref": "#/components/schemas/ProfileTargetsRangeConditionsV3"
+     },
+     {
+      "$ref": "#/components/schemas/ProfileTargetsOpenEndedConditionsV3"
+     }
+    ]
+   },
+   "LocaleCodeWithReference": {
+    "type": "string"
+   },
+   "ModuleAdaptivePacing": {
+    "title": "Adaptive even pacing",
+    "type": "object",
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "adaptive"
+      ]
+     },
+     "increment_interval": {
+      "$ref": "#/components/schemas/IncrementInterval"
+     }
+    },
+    "required": [
+     "type",
+     "increment_interval"
+    ]
+   },
+   "ModuleDynamicPricing": {
+    "title": "Dynamic pricing",
+    "type": "object",
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "dynamic"
+      ]
+     },
+     "total_budget": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/MonetaryAmount"
+       }
+      ]
+     },
+     "maximum_cpi": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/MonetaryAmount"
+       }
+      ]
+     },
+     "minimum_cpi": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/MonetaryAmount"
+       }
+      ]
+     }
+    },
+    "required": [
+     "type"
+    ]
+   },
+   "ModuleGeminiPacing": {
+    "title": "Gemini pacing",
+    "type": "object",
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "gemini"
+      ]
+     },
+     "exposed_target_group_id": {
+      "type": "string",
+      "format": "ulid"
+     }
+    },
+    "required": [
+     "type",
+     "exposed_target_group_id"
+    ]
+   },
+   "ModuleLinearPacing": {
+    "title": "Linear even pacing",
+    "type": "object",
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "linear"
+      ]
+     },
+     "increment_interval": {
+      "$ref": "#/components/schemas/IncrementInterval"
+     }
+    },
+    "required": [
+     "type",
+     "increment_interval"
+    ]
+   },
+   "ModuleQuotaOverlay": {
+    "title": "Quota overlay",
+    "type": "object",
+    "properties": {
+     "prevent_overfill": {
+      "type": "boolean"
+     },
+     "balance_fill": {
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "prevent_overfill",
+     "balance_fill"
+    ]
+   },
+   "ModuleRateCardPricing": {
+    "title": "Rate Card pricing",
+    "type": "object",
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "rate_card"
+      ]
+     },
+     "maximum_cpi": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/MonetaryAmount"
+       }
+      ]
+     },
+     "boost_cpi": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/MonetaryAmount"
+       }
+      ]
+     }
+    },
+    "required": [
+     "type"
+    ]
+   },
+   "ModuleSoftLaunch": {
+    "title": "Soft launch",
+    "type": "object",
+    "properties": {
+     "end_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "filling_goal_percentage": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+     },
+     "demographics_strictness_percentage": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+     }
+    },
+    "required": [
+     "end_at",
+     "filling_goal_percentage",
+     "demographics_strictness_percentage"
+    ]
+   },
+   "MonetaryAmount": {
+    "type": "object",
+    "properties": {
+     "value": {
+      "type": "string"
+     },
+     "currency_code": {
+      "$ref": "#/components/schemas/CurrencyCode"
+     },
+     "currency_scale": {
+      "allOf": [
+       {
+        "nullable": true
+       },
+       {
+        "type": "integer"
+       }
+      ]
+     }
+    }
+   },
+   "MonetaryAmountRequestModel": {
+    "type": "object",
+    "properties": {
+     "value": {
+      "type": "string"
+     },
+     "currency_code": {
+      "$ref": "#/components/schemas/CurrencyCode"
+     }
+    }
+   },
+   "ProfileTargetsOpenEndedConditionsV3": {
+    "title": "Open-ended condition",
+    "oneOf": [
+     {
+      "title": "Allow All Values",
+      "type": "object",
+      "properties": {
+       "object": {
+        "type": "string",
+        "enum": [
+         "open_ended"
+        ]
+       },
+       "question_id": {
+        "$ref": "#/components/schemas/QuestionID"
+       },
+       "allow_all_values": {
+        "type": "boolean",
+        "enum": [
+         true
+        ]
+       },
+       "open_ended_values": {
+        "type": "array",
+        "minItems": 0,
+        "maxItems": 0,
+        "items": {
+         "type": "string"
+        },
+        "nullable": true
+       }
+      },
+      "required": [
+       "object",
+       "question_id",
+       "allow_all_values",
+       "open_ended_values"
+      ]
+     },
+     {
+      "title": "Specific Open End Values",
+      "type": "object",
+      "properties": {
+       "object": {
+        "type": "string",
+        "enum": [
+         "open_ended"
+        ]
+       },
+       "question_id": {
+        "$ref": "#/components/schemas/QuestionID"
+       },
+       "allow_all_values": {
+        "type": "boolean",
+        "enum": [
+         false
+        ]
+       },
+       "open_ended_values": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "minItems": 1,
+        "maxItems": 10000
+       }
+      },
+      "required": [
+       "object",
+       "question_id",
+       "allow_all_values",
+       "open_ended_values"
+      ]
+     }
+    ]
+   },
+   "ProfileTargetsRangeConditionsV3": {
+    "title": "Range condition",
+    "type": "object",
+    "required": [
+     "object",
+     "question_id",
+     "min",
+     "max"
+    ],
+    "properties": {
+     "object": {
+      "type": "string",
+      "enum": [
+       "range"
+      ]
+     },
+     "question_id": {
+      "$ref": "#/components/schemas/QuestionID"
+     },
+     "min": {
+      "type": "integer",
+      "format": "int32",
+      "minimum": 1,
+      "maximum": 99
+     },
+     "max": {
+      "type": "integer",
+      "format": "int32",
+      "minimum": 1,
+      "maximum": 99
+     }
+    }
+   },
+   "ProfileTargetsSelectionConditionsV3": {
+    "title": "Selection condition",
+    "type": "object",
+    "required": [
+     "object",
+     "question_id",
+     "option"
+    ],
+    "properties": {
+     "object": {
+      "type": "string",
+      "enum": [
+       "selection"
+      ]
+     },
+     "question_id": {
+      "$ref": "#/components/schemas/QuestionID"
+     },
+     "option": {
+      "type": "string"
+     }
+    }
+   },
+   "ProfileTemplateIdWithProfileAdjustmentType": {
+    "type": "object",
+    "required": [
+     "template_id",
+     "profile_adjustment_type"
+    ],
+    "properties": {
+     "template_id": {
+      "type": "string",
+      "format": "uuid"
+     },
+     "profile_adjustment_type": {
+      "type": "string",
+      "enum": [
+       "percentage"
+      ]
+     }
+    }
+   },
+   "ProfilingDraftRequest": {
+    "type": "object",
+    "required": [
+     "profile_adjustment_type",
+     "profiles"
+    ],
+    "properties": {
+     "profile_adjustment_type": {
+      "type": "string",
+      "enum": [
+       "percentage",
+       "nominal"
+      ]
+     },
+     "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "$ref": "#/components/schemas/RequestDraftRegularProfileV3"
+      }
+     }
+    }
+   },
+   "ProfilingDraftRequestWithTemplate": {
+    "type": "object",
+    "required": [
+     "template_id",
+     "profile_adjustment_type",
+     "profiles"
+    ],
+    "properties": {
+     "template_id": {
+      "type": "string",
+      "format": "uuid"
+     },
+     "profile_adjustment_type": {
+      "type": "string",
+      "enum": [
+       "percentage"
+      ]
+     },
+     "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "$ref": "#/components/schemas/RequestDraftRegularProfileV3"
+      }
+     }
+    }
+   },
+   "ProfilingRequest": {
+    "oneOf": [
+     {
+      "title": "Only template",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/ProfileTemplateIdWithProfileAdjustmentType"
+       }
+      ],
+      "not": {
+       "required": [
+        "profiles"
+       ]
+      }
+     },
+     {
+      "title": "Only profiles",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/ProfilingDraftRequest"
+       }
+      ],
+      "not": {
+       "required": [
+        "template_id"
+       ]
+      }
+     },
+     {
+      "title": "Both template and profiles",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/ProfilingDraftRequestWithTemplate"
+       }
+      ]
+     },
+     {
+      "title": "No profiling",
+      "type": "object",
+      "nullable": true,
+      "enum": [
+       null
+      ]
+     }
+    ]
+   },
+   "QuestionID": {
+    "type": "integer"
+   },
+   "ReEntryConfiguration": {
+    "type": "object",
+    "required": [
+     "completes",
+     "pre_client_survey_processes",
+     "financial_terms",
+     "terminates",
+     "security_failures",
+     "overquota",
+     "in_screener"
+    ],
+    "properties": {
+     "completes": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TargetGroupClientSideReEntryAttribute"
+       },
+       {}
+      ]
+     },
+     "pre_client_survey_processes": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TargetGroupScreenerSideReEntryAttribute"
+       },
+       {}
+      ]
+     },
+     "financial_terms": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TargetGroupScreenerSideReEntryAttribute"
+       },
+       {}
+      ]
+     },
+     "terminates": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TargetGroupClientAndScreenerSideReEntryAttribute"
+       },
+       {}
+      ]
+     },
+     "security_failures": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TargetGroupClientAndScreenerSideReEntryAttribute"
+       },
+       {}
+      ]
+     },
+     "overquota": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TargetGroupClientAndScreenerSideReEntryAttribute"
+       },
+       {}
+      ]
+     },
+     "in_screener": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TargetGroupClientAndScreenerSideReEntryAttribute"
+       },
+       {}
+      ]
+     }
+    }
+   },
+   "RequestDraftNoQuotaV3": {
+    "type": "object",
+    "required": [
+     "conditions"
+    ],
+    "properties": {
+     "object": {
+      "type": "string",
+      "enum": [
+       "nominal"
+      ]
+     },
+     "conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "$ref": "#/components/schemas/InterlockProfileConditionsV3"
+      }
+     },
+     "quota": {
+      "type": "object",
+      "nullable": true,
+      "enum": [
+       null
+      ]
+     }
+    }
+   },
+   "RequestDraftQuotaNominalV3": {
+    "type": "object",
+    "required": [
+     "conditions",
+     "quota"
+    ],
+    "properties": {
+     "conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "$ref": "#/components/schemas/InterlockProfileConditionsV3"
+      }
+     },
+     "quota": {
+      "type": "object",
+      "required": [
+       "completes_goal"
+      ],
+      "properties": {
+       "name": {
+        "type": "string",
+        "deprecated": true
+       },
+       "completes_goal": {
+        "type": "number",
+        "format": "int32",
+        "minimum": 0
+       }
+      }
+     }
+    }
+   },
+   "RequestDraftQuotaPercentageV3": {
+    "type": "object",
+    "required": [
+     "conditions",
+     "quota"
+    ],
+    "properties": {
+     "conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "$ref": "#/components/schemas/InterlockProfileConditionsV3"
+      }
+     },
+     "quota": {
+      "type": "object",
+      "required": [
+       "completes_goal_percentage"
+      ],
+      "properties": {
+       "name": {
+        "type": "string",
+        "deprecated": true
+       },
+       "completes_goal_percentage": {
+        "type": "number",
+        "multipleOf": 0.01,
+        "minimum": 0,
+        "maximum": 100
+       }
+      }
+     }
+    }
+   },
+   "RequestDraftQuotaV3": {
+    "oneOf": [
+     {
+      "title": "Targets with nominal value in quota",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "$ref": "#/components/schemas/RequestDraftQuotaNominalV3"
+      }
+     },
+     {
+      "title": "Targets with percentage value in quota",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "$ref": "#/components/schemas/RequestDraftQuotaPercentageV3"
+      }
+     },
+     {
+      "title": "Targets with conditions and no quota",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "$ref": "#/components/schemas/RequestDraftNoQuotaV3"
+      }
+     }
+    ]
+   },
+   "RequestDraftRegularProfileV3": {
+    "oneOf": [
+     {
+      "title": "Regular Profile",
+      "type": "object",
+      "required": [
+       "object",
+       "quotas_enabled",
+       "targets"
+      ],
+      "properties": {
+       "object": {
+        "type": "string",
+        "enum": [
+         "regular"
+        ]
+       },
+       "name": {
+        "type": "string"
+       },
+       "quotas_enabled": {
+        "type": "boolean"
+       },
+       "targets": {
+        "$ref": "#/components/schemas/RequestDraftQuotaV3"
+       }
+      }
+     },
+     {
+      "title": "Blended Profile",
+      "type": "object",
+      "required": [
+       "object",
+       "name",
+       "quotas_enabled",
+       "targets"
+      ],
+      "properties": {
+       "object": {
+        "type": "string",
+        "enum": [
+         "blended"
+        ]
+       },
+       "blended_type": {
+        "type": "string",
+        "enum": [
+         "interlock",
+         "control"
+        ]
+       },
+       "name": {
+        "type": "string"
+       },
+       "quotas_enabled": {
+        "type": "boolean"
+       },
+       "targets": {
+        "$ref": "#/components/schemas/RequestDraftQuotaV3"
+       }
+      }
+     }
+    ]
+   },
+   "RespondentActivityExclusionsIDsListRequest": {
+    "type": "object",
+    "required": [
+     "type",
+     "id"
+    ],
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "target-group",
+       "project"
+      ]
+     },
+     "id": {
+      "type": "string",
+      "format": "ulid"
+     },
+     "duration": {
+      "type": "string",
+      "format": "duration",
+      "default": "P90D"
+     },
+     "respondent_statuses": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "default": [
+       "Complete"
+      ],
+      "items": {
+       "type": "string",
+       "enum": [
+        "Complete",
+        "Terminate",
+        "SecurityFailure",
+        "OverQuota",
+        "FinancialTerm",
+        "PreClientSurveyProcess"
+       ]
+      }
+     }
+    }
+   },
+   "StudyTypeCodeWithReference": {
+    "type": "string",
+    "default": "adhoc"
+   },
+   "SupplierIds": {
+    "type": "array",
+    "items": {
+     "type": "string"
+    }
+   },
+   "TargetGroupClientAndScreenerSideReEntryAttribute": {
+    "type": "object",
+    "required": [
+     "client_side",
+     "screener_side"
+    ],
+    "properties": {
+     "client_side": {
+      "$ref": "#/components/schemas/TargetGroupReEntryAttributeConfig"
+     },
+     "screener_side": {
+      "$ref": "#/components/schemas/TargetGroupReEntryAttributeConfig"
+     }
+    }
+   },
+   "TargetGroupClientCpiMonetaryAmountRequestModel": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/MonetaryAmountRequestModel"
+     }
+    ]
+   },
+   "TargetGroupClientID": {
+    "type": "integer",
+    "format": "int32",
+    "nullable": true
+   },
+   "TargetGroupClientSideReEntryAttribute": {
+    "type": "object",
+    "required": [
+     "client_side"
+    ],
+    "properties": {
+     "client_side": {
+      "$ref": "#/components/schemas/TargetGroupReEntryAttributeConfig"
+     }
+    }
+   },
+   "TargetGroupCollectsPII": {
+    "type": "boolean"
+   },
+   "TargetGroupCustomerReferenceNumber": {
+    "type": "string",
+    "pattern": "^[a-zA-Z0-9\\-_ ]*$",
+    "minLength": 3,
+    "maxLength": 128
+   },
+   "TargetGroupExclusionObject": {
+    "type": "object",
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "list": {
+      "deprecated": true,
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/ExclusionEntityList"
+      }
+     }
+    }
+   },
+   "TargetGroupExpectedIncidenceRate": {
+    "type": "number",
+    "format": "float",
+    "minimum": 0,
+    "maximum": 1,
+    "multipleOf": 0.01
+   },
+   "TargetGroupExpectedLengthOfInterview": {
+    "type": "integer",
+    "format": "int32",
+    "minimum": 1,
+    "maximum": 45
+   },
+   "TargetGroupFieldingSpecification": {
+    "type": "object",
+    "required": [
+     "start_at",
+     "end_at"
+    ],
+    "properties": {
+     "start_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "end_at": {
+      "type": "string",
+      "format": "date-time"
+     }
+    }
+   },
+   "TargetGroupIndustryLockoutCodeWithReference": {
+    "type": "string"
+   },
+   "TargetGroupLiveUrl": {
+    "type": "string"
+   },
+   "TargetGroupName": {
+    "type": "string",
+    "minLength": 5,
+    "maxLength": 128
+   },
+   "TargetGroupReEntryAttributeConfig": {
+    "type": "object",
+    "required": [
+     "allow_for_current_target_group",
+     "allow_for_other_target_groups"
+    ],
+    "properties": {
+     "allow_for_current_target_group": {
+      "type": "boolean"
+     },
+     "allow_for_other_target_groups": {
+      "type": "boolean"
+     }
+    }
+   },
+   "TargetGroupRespondentActivityExclusionsRequest": {
+    "type": "array",
+    "items": {
+     "$ref": "#/components/schemas/RespondentActivityExclusionsIDsListRequest"
+    }
+   },
+   "TargetGroupScreenerSideReEntryAttribute": {
+    "type": "object",
+    "required": [
+     "screener_side"
+    ],
+    "properties": {
+     "screener_side": {
+      "$ref": "#/components/schemas/TargetGroupReEntryAttributeConfig"
+     }
+    }
+   },
+   "TargetGroupTestUrl": {
+    "type": "string"
+   },
+   "TemplateID": {
+    "type": "string",
+    "format": "ulid"
+   },
+   "UserID": {
+    "type": "string",
+    "format": "uuid"
+   }
+  }
+ }
+}

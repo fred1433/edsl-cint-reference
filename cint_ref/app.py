@@ -14,6 +14,7 @@ from .config import Settings
 from .db import Database
 from .respondent_flow import (
     AdmissionRefused,
+    InvalidResponse,
     NoSavedResponse,
     RespondentFlow,
     ResponseConflict,
@@ -63,7 +64,10 @@ def create_app(
             return JSONResponse({"saved": False, "reason": str(e)}, status_code=403)
         except ResponseConflict as e:
             return JSONResponse({"saved": False, "reason": str(e)}, status_code=409)
-        return {"saved": True, "outcome": row["outcome"]}
+        except InvalidResponse as e:
+            return JSONResponse({"saved": False, "reason": str(e)}, status_code=422)
+        # Saving decides nothing; the host decision is taken at finalization.
+        return {"saved": True}
 
     @app.post("/cint/s/{human_survey_uuid}/finish")
     def finish(human_survey_uuid: str, rid: str, request: Request):
@@ -80,9 +84,13 @@ def create_app(
             result = flow.finalize(rid)
         except NoSavedResponse as e:
             return JSONResponse({"state": "refused", "reason": str(e)}, status_code=409)
+        if result.state == "not_ready":
+            return JSONResponse({"state": "not_ready", "response_saved": True,
+                                 "detail": result.detail}, status_code=409)
         if result.redirect_url:
             return RedirectResponse(result.redirect_url, status_code=303)
-        # No redirect without a confirmed transition (guide: wait for 200).
+        # No redirect unless the return is authorized: by a 200 from Cint, or by an
+        # operator under a local policy Cint has not validated.
         return JSONResponse(
             {"state": result.state, "response_saved": True, "detail": result.detail},
             status_code=202,
@@ -99,7 +107,8 @@ def create_app(
             return JSONResponse({"found": False}, status_code=404)
         keep = ("rid", "human_survey_uuid", "outcome", "outcome_conflicts", "transition_state",
                 "transition_attempts", "last_transition_http", "last_transition_error",
-                "confirmed_by", "observed_s2s_status", "observed_client_status", "observed_seq")
+                "confirmed_by", "return_authorized", "return_authorized_by", "resolved_by",
+                "late_replies", "observed_s2s_status", "observed_client_status", "observed_seq")
         return {k: (str(row[k]) if k == "rid" else row[k]) for k in keep}
 
     @app.post("/cint/webhooks")

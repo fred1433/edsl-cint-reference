@@ -32,7 +32,7 @@ def draft(settings, demand):
     project = demand.create_project(ACCOUNT, "EDSL study", "00000000-0000-0000-0000-000000000000")
     live_url = SurveyBinding(SURVEY).live_url(settings.public_base_url)
     tg = demand.create_draft_target_group(
-        ACCOUNT, project, draft_target_group(live_url, "placeholder-security-client-id", 200))
+        ACCOUNT, project, draft_target_group(live_url, 1234, 200))
     return project, tg
 
 
@@ -46,7 +46,7 @@ def test_draft_payload_has_the_required_fields(settings, demand, fake_demand):
     _, tg = draft(settings, demand)
     assert fake_demand.target_groups[tg]["status"] == "draft"
     assert fake_demand.target_groups[tg]["live_url"].endswith("?rid=[%RID%]")
-    payload = draft_target_group("https://x", "c", 1)
+    payload = draft_target_group("https://x", 1234, 1)
     del payload["completes_goal"]
     with pytest.raises(DemandError):
         demand.create_draft_target_group(ACCOUNT, "p", payload)
@@ -117,3 +117,35 @@ def test_stale_etag_after_someone_else_paused_is_not_retried(settings, demand, f
     change_after_first_read(monkeypatch, demand, fake_demand, run_id, status="paused")
     assert tracker.pause(tg) == "already_paused"
     assert len(pause_posts(fake_demand)) == 1
+
+
+def test_delayed_launch_poll_cannot_undo_a_later_pause(settings, demand, fake_demand, tracker,
+                                                       db, monkeypatch):
+    from cint_ref.demand_client import DemandClient
+
+    fake_demand.polls_before_terminal = 0
+    project, tg = draft(settings, demand)
+    tracker.start(ACCOUNT, project, tg, "2026-11-16T23:59:59.000Z")
+    demand_b = DemandClient(settings.demand_base_url, settings.demand_token,
+                            settings.demand_api_version, fake_demand.transport)
+    tracker_b = LaunchTracker(db, demand_b)
+    original = demand.get_launch_job
+
+    def a_reads_then_b_acts(*args):
+        job = original(*args)                  # A has read 'Completed'...
+        assert tracker_b.poll(tg)["state"] == "live"   # ...B records live
+        assert tracker_b.pause(tg) == "paused"         # ...and B pauses
+        return job                             # then A's reply is applied
+
+    monkeypatch.setattr(demand, "get_launch_job", a_reads_then_b_acts)
+    assert tracker.poll(tg)["state"] == "paused"
+    assert tracker.get(tg)["state"] == "paused"
+
+
+def test_launch_retry_with_a_different_request_is_refused(settings, demand, tracker):
+    from cint_ref.launch import LaunchConflict
+
+    project, tg = draft(settings, demand)
+    tracker.start(ACCOUNT, project, tg, "2026-11-16T23:59:59.000Z")
+    with pytest.raises(LaunchConflict):
+        tracker.start(ACCOUNT, project, tg, "2026-12-31T23:59:59.000Z")

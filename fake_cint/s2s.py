@@ -35,6 +35,8 @@ class FakeS2S:
         self.calls: list[tuple[str, str, Optional[dict]]] = []
         self.faults: deque[str] = deque()
         self._lock = threading.Lock()
+        self.holding = threading.Event()   # set when a 'hold' call is waiting
+        self.release = threading.Event()   # set by the test to let it proceed
 
     # Test controls ---------------------------------------------------------------
     def add_respondent(self, rid: str, href: str, status: int = IN_SURVEY) -> None:
@@ -46,6 +48,7 @@ class FakeS2S:
         'not_sent'          [fault] connection refused, nothing applied
         'unrelated_422'     [fault] 422 without applying anything
         'crash_before_send' [fault] the calling process dies before the request leaves
+        'hold'              [fault] the reply is delayed until the test releases it
         """
         self.faults.extend(faults)
 
@@ -87,6 +90,9 @@ class FakeS2S:
         fault = self.faults.popleft() if self.faults else None
         if fault == "crash_before_send":
             raise ProcessDied()
+        if fault == "hold":
+            self.holding.set()
+            assert self.release.wait(10), "held call never released"
         if fault == "not_sent":
             raise httpx.ConnectError("connection refused", request=request)
         if fault == "unrelated_422":

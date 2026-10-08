@@ -36,13 +36,20 @@ def test_lost_completion_ack_keeps_response_and_uncertainty(h, fake_s2s, edsl_su
     assert again.status_code == 202 and "location" not in again.headers
 
     # The response stays usable in EDSL while the outcome is unresolved.
+    # The response stays usable in EDSL, and so does the uncertainty.
     results = Results.from_human_responses(edsl_survey, [to_human_response_row(row)])
-    assert results.select("answer.pet").to_list() == ["Dog"]
+    out = results.select("answer.pet", "agent.cint_intended_outcome",
+                         "agent.cint_transition_state").to_dicts(remove_prefix=False)[0]
+    assert out == {"answer.pet": "Dog", "agent.cint_intended_outcome": "complete",
+                   "agent.cint_transition_state": "unknown"}
 
-    # Only an explicit, attributed decision closes it (or a Cint-confirmed rule
-    # plugged into RespondentFlow.recovery_rule).
+    # An operator may classify the case; that alone does not send anyone back.
     resolved = h.flow.operator_resolve(rid, confirmed=True, operator="ops-on-call")
-    assert resolved["confirmed_by"] == "operator:ops-on-call"
+    assert resolved["resolved_by"] == "operator:ops-on-call" and resolved["return_authorized"] is False
+    assert h.finish(rid).status_code == 202
+    # Returning the respondent without a 200 is a separate, local-policy authorization.
+    authorized = h.flow.authorize_return(rid, operator="ops-on-call")
+    assert authorized["return_authorized_by"] == "operator:ops-on-call (local policy)"
     done = h.finish(rid)
     assert done.status_code == 303
     assert done.headers["location"] == f"https://samplicio.us/s/ClientCallBack.aspx?RID={rid}"

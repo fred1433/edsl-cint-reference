@@ -10,12 +10,7 @@ from typing import Optional
 
 import httpx
 
-# [published] required fields of CreateDraftTargetGroupRequest in the spec.
-TARGET_GROUP_REQUIRED = (
-    "name", "business_unit_id", "locale", "project_manager_id", "fielding_specification",
-    "fielding_assistant_assignment", "completes_goal", "collects_pii",
-    "expected_length_of_interview_minutes", "expected_incidence_rate",
-)
+from cint_ref.contract import contract_errors
 
 
 @dataclass
@@ -70,9 +65,13 @@ class FakeDemand:
                 pid = self.projects_by_key.setdefault(key, next(self._ids))  # [published]
                 return httpx.Response(202, json={"id": pid})  # [published] 202 + id
         if m := re.fullmatch(r"/v1/demand/accounts/\d+/projects/(\w+)/target-groups", path):
-            missing = [f for f in TARGET_GROUP_REQUIRED if f not in body]
-            if missing:  # [published] required list; [assumption] error body shape
-                return httpx.Response(400, json={"detail": f"missing {missing}"})
+            # [published] full request schema from the pinned spec (oneOf, nested
+            # types); [assumption] 400 and the error body shape.
+            # [local] draft creation is NOT deduplicated by Idempotency-Key here:
+            # only project creation and launch jobs are.
+            errors = contract_errors("create_draft_target_group", body)
+            if errors:
+                return httpx.Response(400, json={"detail": errors})
             tg = next(self._ids)
             self.target_groups[tg] = {"status": "draft", **body}  # [published] draft
             return httpx.Response(201, json={"id": tg})

@@ -99,59 +99,87 @@ class WebhookInbox:
             ).fetchone()
             if inserted is None:
                 return event_id, False
-            self._apply(conn, event)
+            projection = apply_event(conn, event)
+            conn.execute("UPDATE cint_webhook_inbox SET projection = %s WHERE event_id = %s",
+                         (projection, event_id))
         return event_id, True
 
-    def _apply(self, conn, event: dict[str, Any]) -> None:
-        data = event.get("data") or {}
-        kind = event.get("type")
-        if kind == "com.cint.session.updated":
-            self._session_updated(conn, data)
-        elif kind == "com.cint.quota.fill.registered":
-            self._quota_fill(conn, data, event["time"])
-        # com.cint.target-group.updated and unknown types: kept in the inbox only.
 
-    @staticmethod
-    def _session_updated(conn, data: dict[str, Any]) -> None:
-        # Assumption to confirm: response_session_id is the RID received on entry.
-        # If it is not a UUID, the event stays in the inbox without effect and is
-        # still acknowledged: refusing it would block the destination for 7 days.
-        seq = int(data["sequence_number"])
-        try:
-            rid = str(uuid.UUID(str(data.get("response_session_id"))))
-        except ValueError:
-            return
-        client_status = None
-        for change in data.get("changes") or []:
-            if change.get("object") == "client_status_code_change":
-                client_status = change.get("new_value")
-        # An older update never overwrites a newer one. Observation only: this does
-        # not confirm or change the S2S transition state.
-        conn.execute(
-            """UPDATE cint_sessions
-                  SET observed_seq = %s,
-                      observed_client_status = COALESCE(%s, observed_client_status),
-                      updated_at = now()
-                WHERE rid = %s AND (observed_seq IS NULL OR observed_seq < %s)""",
-            (seq, client_status, rid, seq),
-        )
+def apply_event(conn, event: dict[str, Any]) -> str:
+    """Project one event. Returns 'applied', 'unmatched' or 'ignored'."""
+    data = event.get("data") or {}
+    kind = event.get("type")
+    if kind == "com.cint.session.updated":
+        return _session_updated(conn, data)
+    if kind == "com.cint.quota.fill.registered":
+        _quota_fill(conn, data, event["time"])
+        return "applied"
+    return "ignored"  # target-group.updated and unknown types: kept in the inbox only
 
-    @staticmethod
-    def _quota_fill(conn, data: dict[str, Any], event_time: str) -> None:
-        # Progress view only; in-progress respondents are not converted to quota full.
-        conn.execute(
-            """INSERT INTO cint_quota_progress
-                   (target_group_id, profile_quota_id, screens, completes, event_time)
-               VALUES (%s, %s, %s, %s, %s)
-               ON CONFLICT (target_group_id, profile_quota_id) DO UPDATE
-                  SET screens = EXCLUDED.screens, completes = EXCLUDED.completes,
-                      event_time = EXCLUDED.event_time
-                WHERE cint_quota_progress.event_time < EXCLUDED.event_time""",
-            (
-                data["target_group_id"],
-                data.get("profile_quota_id") or "",
-                int(data["screens"]),
-                int(data["completes"]),
-                event_time,
-            ),
-        )
+
+def _session_updated(conn, data: dict[str, Any]) -> str:
+    # Assumption to confirm: response_session_id is the RID received on entry.
+    # If it is not a UUID, the event stays in the inbox without effect and is still
+    # acknowledged: refusing it would block the destination for up to 7 days.
+    seq = int(data["sequence_number"])
+    try:
+        rid = str(uuid.UUID(str(data.get("response_session_id"))))
+    except ValueError:
+        return "ignored"
+    status = None
+    for change in data.get("changes") or []:
+        if change.get("object") == "client_status_code_change":
+            status = change.get("new_value")
+    # Events carry changes, not snapshots: each projected field keeps the sequence of
+    # the event that last set it, so a later event without a status change cannot
+    # hide an earlier status. Observation only: never confirms an S2S transition.
+    row = conn.execute(
+        """UPDATE cint_sessions SET
+               observed_seq = GREATEST(COALESCE(observed_seq, %(seq)s), %(seq)s),
+               observed_client_status = CASE
+                   WHEN %(st)s::int IS NOT NULL AND COALESCE(observed_client_status_seq, -1) < %(seq)s
+                   THEN %(st)s::int ELSE observed_client_status END,
+               observed_client_status_seq = CASE
+                   WHEN %(st)s::int IS NOT NULL AND COALESCE(observed_client_status_seq, -1) < %(seq)s
+                   THEN %(seq)s ELSE observed_client_status_seq END,
+               updated_at = now()
+           WHERE rid = %(rid)s RETURNING rid""",
+        {"seq": seq, "st": status, "rid": rid},
+    ).fetchone()
+    return "applied" if row else "unmatched"
+
+
+def replay_unmatched_session_events(conn, rid: str) -> int:
+    """Called at admission: project session events that arrived before the session."""
+    events = conn.execute(
+        """SELECT event_id, payload FROM cint_webhook_inbox
+           WHERE projection = 'unmatched' AND event_type = 'com.cint.session.updated'
+             AND lower(payload->'data'->>'response_session_id') = %s
+           ORDER BY (payload->'data'->>'sequence_number')::int""",
+        (rid,),
+    ).fetchall()
+    for e in events:
+        projection = apply_event(conn, e["payload"])
+        conn.execute("UPDATE cint_webhook_inbox SET projection = %s WHERE event_id = %s",
+                     (projection, e["event_id"]))
+    return len(events)
+
+
+def _quota_fill(conn, data: dict[str, Any], event_time: str) -> None:
+    # Progress view only; in-progress respondents are not converted to quota full.
+    conn.execute(
+        """INSERT INTO cint_quota_progress
+               (target_group_id, profile_quota_id, screens, completes, event_time)
+           VALUES (%s, %s, %s, %s, %s)
+           ON CONFLICT (target_group_id, profile_quota_id) DO UPDATE
+              SET screens = EXCLUDED.screens, completes = EXCLUDED.completes,
+                  event_time = EXCLUDED.event_time
+            WHERE cint_quota_progress.event_time < EXCLUDED.event_time""",
+        (
+            data["target_group_id"],
+            data.get("profile_quota_id") or "",
+            int(data["screens"]),
+            int(data["completes"]),
+            event_time,
+        ),
+    )

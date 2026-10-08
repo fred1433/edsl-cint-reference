@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from cint_ref.app import create_app
 from cint_ref.config import Settings
 from cint_ref.db import Database
-from cint_ref.respondent_flow import SurveyBinding
+from cint_ref.respondent_flow import SurveyBinding, complete_when_answered
 from fake_cint.s2s import FakeS2S
 
 DB_URL = os.environ.get("DATABASE_URL", "postgresql:///edsl_cint_reference_test")
@@ -36,10 +36,11 @@ SCENARIO = {"brand": "Acme Kibble"}
 
 def bindings():
     return {
-        SURVEY: SurveyBinding(SURVEY),
+        SURVEY: SurveyBinding(SURVEY, decide=complete_when_answered(["pet", "brand_opinion"])),
         SCREENER_SURVEY: SurveyBinding(
             SCREENER_SURVEY,
-            screenout_rule=lambda entries: (entries.get("pet") or {}).get("answer") == "None",
+            decide=complete_when_answered(
+                ["pet"], screenout_rule=lambda e: (e.get("pet") or {}).get("answer") == "None"),
         ),
     }
 
@@ -86,10 +87,10 @@ class Harness:
     def admit(self, rid, survey=SURVEY):
         return self.client.get(f"/cint/s/{survey}/entry", params={"rid": rid})
 
-    def save(self, rid, survey=SURVEY, entries=None, response_uuid=None):
+    def save(self, rid, survey=SURVEY, entries=None, response_uuid=None, scenario=SCENARIO):
         return self.client.post(f"/cint/s/{survey}/responses", json={
             "rid": rid, "response_uuid": response_uuid or f"resp-{rid[:8]}",
-            "entries": entries or ANSWERS, "scenario": SCENARIO})
+            "entries": ANSWERS if entries is None else entries, "scenario": scenario})
 
     def finish(self, rid, survey=SURVEY, **params):
         return self.client.post(f"/cint/s/{survey}/finish", params={"rid": rid, **params})

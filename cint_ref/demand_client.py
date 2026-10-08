@@ -65,7 +65,8 @@ class DemandClient:
         )
         return self._check(r, 202).json()["id"]
 
-    # create_target_group: 201 + id, status draft.
+    # create_target_group: 201 + id, status draft. The key is sent, but this reference
+    # does not prove that Cint deduplicates draft creation; the fake does not.
     def create_draft_target_group(self, account_id: int, project_id: str,
                                   payload: dict[str, Any],
                                   idempotency_key: Optional[str] = None) -> str:

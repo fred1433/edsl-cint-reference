@@ -7,7 +7,7 @@ import uuid
 
 import pytest
 
-from cint_ref.webhooks import SignatureError, WebhookInbox, sign, verify_signature
+from cint_ref.webhooks import SignatureError, sign, verify_signature
 from tests.conftest import PUBLISHED_SECRET
 
 # Published in the spec (components.schemas.WebhookSecret), OpenSSL example.
@@ -72,10 +72,16 @@ def count(db, table):
 
 
 def test_duplicate_delivery_has_one_effect_and_two_acks(h, db, monkeypatch):
+    import cint_ref.webhooks as wh
+
     applied = []
-    original = WebhookInbox._apply
-    monkeypatch.setattr(WebhookInbox, "_apply",
-                        lambda self, conn, ev: (applied.append(ev["id"]), original(self, conn, ev)))
+    original = wh.apply_event
+
+    def counting(conn, ev):
+        applied.append(ev["id"])
+        return original(conn, ev)
+
+    monkeypatch.setattr(wh, "apply_event", counting)
     rid = h.new_respondent()
     h.admit(rid)
     event = session_event(rid, seq=4, client_status=10)
@@ -135,7 +141,9 @@ def test_quota_fill_updates_progress_and_leaves_respondents_alone(h, db):
         progress = conn.execute("SELECT completes FROM cint_quota_progress").fetchone()
     assert progress["completes"] == 73
     assert h.flow.session_state(rid)["outcome"] is None
-    assert h.save(rid).json()["outcome"] == "complete"
+    h.save(rid)
+    assert h.finish(rid).status_code == 303
+    assert h.fake.transitions_sent() == [{"id": rid, "status": 5}]
 
 
 @pytest.mark.parametrize("session_id", ["not-a-uuid", "6780395e-94fa-4eb7-912c-d2e19af42758"])
@@ -151,3 +159,24 @@ def test_signature_from_the_future_is_rejected_when_freshness_is_on(h):
     event = quota_event(1, "2026-10-08T10:00:00.000Z")
     assert post(h, event, t=int(time.time()) + 3600).status_code == 401
     assert post(h, quota_event(2, "2026-10-08T10:01:00.000Z"), t=int(time.time()) + 5).status_code == 200
+
+
+def test_status_change_is_not_hidden_by_a_later_event_without_status(h):
+    rid = h.new_respondent()
+    h.admit(rid)
+    post(h, session_event(rid, seq=5))                    # no status change
+    post(h, session_event(rid, seq=4, client_status=10))  # delivered late
+    row = h.flow.session_state(rid)
+    assert (row["observed_seq"], row["observed_client_status"]) == (5, 10)
+
+
+def test_event_before_admission_is_replayed_when_the_rid_is_admitted(h, db):
+    rid = h.new_respondent()
+    post(h, session_event(rid, seq=2, client_status=1))
+    with db.tx() as conn:
+        assert conn.execute("SELECT projection FROM cint_webhook_inbox").fetchone()["projection"] == "unmatched"
+    h.admit(rid)
+    row = h.flow.session_state(rid)
+    assert (row["observed_seq"], row["observed_client_status"]) == (2, 1)
+    with db.tx() as conn:
+        assert conn.execute("SELECT projection FROM cint_webhook_inbox").fetchone()["projection"] == "applied"
