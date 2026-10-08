@@ -1,0 +1,7 @@
+fastapi==0.115.12
+httpx==0.28.1
+psycopg[binary]==3.2.9
+pytest==8.3.5
+uvicorn==0.34.2
+# EDSL pinned to the commit whose public code this reference was written against.
+edsl @ git+https://github.com/expectedparrot/edsl@388a479896c1be520b3c9c7bdce5ac010c1911c8

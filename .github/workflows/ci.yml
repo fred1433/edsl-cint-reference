@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cint
+          POSTGRES_PASSWORD: cint
+          POSTGRES_DB: edsl_cint_reference_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cint"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://cint:cint@localhost:5432/edsl_cint_reference_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Tests (real PostgreSQL, pinned EDSL, simulated Cint)
+        run: python -m pytest -v
+      - name: Example run
+        run: python examples/run_example.py
