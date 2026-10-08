@@ -18,6 +18,7 @@ from .respondent_flow import (
     RespondentFlow,
     ResponseConflict,
     SurveyBinding,
+    parse_rid,
 )
 from .s2s_client import S2SClient
 from .webhooks import SignatureError, WebhookInbox, decoded_body, verify_signature
@@ -68,7 +69,11 @@ def create_app(
     def finish(human_survey_uuid: str, rid: str, request: Request):
         # Attachment point 3: outcome finalization. Any status sent by the browser
         # (e.g. ?status=complete) is ignored; the outcome comes from server state.
-        row = flow.session_state(rid) if rid else None
+        try:
+            rid = parse_rid(rid)
+        except AdmissionRefused:
+            return JSONResponse({"state": "refused", "reason": "malformed rid"}, status_code=403)
+        row = flow.session_state(rid)
         if row is None or row["human_survey_uuid"] != human_survey_uuid:
             return JSONResponse({"state": "refused", "reason": "unknown session"}, status_code=403)
         try:
@@ -86,7 +91,10 @@ def create_app(
     @app.get("/cint/sessions/{rid}")
     def session(rid: str):
         # Attachment point 4: status reporting for operators.
-        row = flow.session_state(rid)
+        try:
+            row = flow.session_state(parse_rid(rid))
+        except AdmissionRefused:
+            row = None
         if row is None:
             return JSONResponse({"found": False}, status_code=404)
         keep = ("rid", "human_survey_uuid", "outcome", "outcome_conflicts", "transition_state",

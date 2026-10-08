@@ -136,3 +136,18 @@ def test_quota_fill_updates_progress_and_leaves_respondents_alone(h, db):
     assert progress["completes"] == 73
     assert h.flow.session_state(rid)["outcome"] is None
     assert h.save(rid).json()["outcome"] == "complete"
+
+
+@pytest.mark.parametrize("session_id", ["not-a-uuid", "6780395e-94fa-4eb7-912c-d2e19af42758"])
+def test_session_event_for_unknown_or_malformed_rid_is_kept_and_acknowledged(h, db, session_id):
+    event = session_event(session_id, seq=1, client_status=10)
+    r = post(h, event)
+    assert r.status_code == 200 and r.json() == {"event_id": event["id"]}
+    assert count(db, "cint_webhook_inbox") == 1
+
+
+def test_signature_from_the_future_is_rejected_when_freshness_is_on(h):
+    h.start(webhook_max_age_seconds=300)
+    event = quota_event(1, "2026-10-08T10:00:00.000Z")
+    assert post(h, event, t=int(time.time()) + 3600).status_code == 401
+    assert post(h, quota_event(2, "2026-10-08T10:01:00.000Z"), t=int(time.time()) + 5).status_code == 200

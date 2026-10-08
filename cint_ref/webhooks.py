@@ -13,11 +13,16 @@ import hashlib
 import hmac
 import json
 import time
+import uuid
 from typing import Any, Optional
 
 from psycopg.types.json import Jsonb
 
 from .db import Database
+
+
+# Local policy: clock skew tolerated for a signature dated in the future.
+FUTURE_SKEW_SECONDS = 60
 
 
 class SignatureError(Exception):
@@ -63,6 +68,8 @@ def verify_signature(
         age = (now if now is not None else time.time()) - t
         if age > max_age_seconds:
             raise SignatureError(f"signature older than {max_age_seconds}s")
+        if age < -FUTURE_SKEW_SECONDS:
+            raise SignatureError("signature timestamp in the future")
     return t
 
 
@@ -107,8 +114,13 @@ class WebhookInbox:
     @staticmethod
     def _session_updated(conn, data: dict[str, Any]) -> None:
         # Assumption to confirm: response_session_id is the RID received on entry.
-        rid = data["response_session_id"]
+        # If it is not a UUID, the event stays in the inbox without effect and is
+        # still acknowledged: refusing it would block the destination for 7 days.
         seq = int(data["sequence_number"])
+        try:
+            rid = str(uuid.UUID(str(data.get("response_session_id"))))
+        except ValueError:
+            return
         client_status = None
         for change in data.get("changes") or []:
             if change.get("object") == "client_status_code_change":

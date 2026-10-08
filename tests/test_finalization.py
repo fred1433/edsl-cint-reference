@@ -93,3 +93,20 @@ def test_concurrent_finalizations_send_one_transition(settings, fake_s2s):
         t.join()
     assert len(fake_s2s.transitions_sent()) == 1
     assert "confirmed" in states and set(states) <= {"confirmed", "in_flight"}
+
+
+def test_requests_that_never_left_do_not_exhaust_attempts(h, fake_s2s):
+    rid = h.answered()
+    fake_s2s.inject("not_sent", "not_sent", "not_sent", "not_sent")
+    for _ in range(4):
+        assert h.finish(rid).json()["state"] == "pending"
+    row = h.flow.session_state(rid)
+    assert row["transition_attempts"] == 0 and fake_s2s.respondents[rid].applied == []
+    assert h.finish(rid).status_code == 303  # Cint reachable again: sent and confirmed
+
+
+def test_recovery_can_be_scoped_to_given_rids(h, fake_s2s):
+    mine, other = h.answered(), h.answered()
+    report = h.flow.recover(only_rids=[mine])
+    assert report["sent"] == [f"{mine}:confirmed"]
+    assert h.flow.session_state(other)["transition_state"] == "pending"

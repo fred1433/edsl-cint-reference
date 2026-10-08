@@ -36,6 +36,14 @@ class ResponseConflict(Exception):
     pass
 
 
+def parse_rid(raw_rid: object) -> str:
+    """Canonical RID string, or AdmissionRefused for anything that is not a UUID."""
+    try:
+        return str(uuid.UUID(str(raw_rid)))
+    except (ValueError, TypeError):
+        raise AdmissionRefused("malformed rid")
+
+
 @dataclass
 class SurveyBinding:
     """Links one human survey to its Cint target group entry link."""
@@ -100,10 +108,7 @@ class RespondentFlow:
         binding = self.bindings.get(human_survey_uuid)
         if binding is None:
             raise AdmissionRefused("unknown survey")
-        try:
-            rid = str(uuid.UUID(raw_rid))
-        except (ValueError, TypeError):
-            raise AdmissionRefused("malformed rid")
+        rid = parse_rid(raw_rid)
 
         existing = self.session_state(rid)
         if existing is not None:
@@ -152,8 +157,10 @@ class RespondentFlow:
         entries: dict[str, Any],
         scenario: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        rid = str(uuid.UUID(raw_rid))
-        binding = self.bindings[human_survey_uuid]
+        binding = self.bindings.get(human_survey_uuid)
+        if binding is None:
+            raise AdmissionRefused("unknown survey")
+        rid = parse_rid(raw_rid)
         with self.db.tx() as conn:
             row = conn.execute(
                 "SELECT * FROM cint_sessions WHERE rid = %s FOR UPDATE", (rid,)
@@ -180,7 +187,7 @@ class RespondentFlow:
 
     def record_outcome(self, raw_rid: str, outcome: Outcome, decided_by: str) -> dict[str, Any]:
         """Server-side decision (survey logic, quality check). First decision wins."""
-        rid = str(uuid.UUID(raw_rid))
+        rid = parse_rid(raw_rid)
         with self.db.tx() as conn:
             return self._record_outcome(conn, rid, Outcome(outcome), decided_by)
 
@@ -209,7 +216,7 @@ class RespondentFlow:
     # 3. Finalization --------------------------------------------------------------
     def finalize(self, raw_rid: str) -> FinalizeResult:
         """Send the decided outcome to Cint once, durably. Ignores any browser status."""
-        rid = str(uuid.UUID(raw_rid))
+        rid = parse_rid(raw_rid)
         with self.db.tx() as conn:
             row = conn.execute(
                 "SELECT * FROM cint_sessions WHERE rid = %s FOR UPDATE", (rid,)
@@ -244,7 +251,9 @@ class RespondentFlow:
             r = self.s2s.transition(rid, code)
             http = r.http_status
         except S2SNotSent as e:
-            return self._settle(rid, previous, None, f"not sent: {e}")
+            # Nothing reached Cint: back to the previous state, and the attempt is not
+            # counted, so an outage cannot exhaust the retry budget.
+            return self._settle(rid, previous, None, f"not sent: {e}", count_attempt=False)
         except S2SAmbiguous as e:
             return self._settle(rid, "unknown", None, f"no response after send: {e}")
 
@@ -262,16 +271,18 @@ class RespondentFlow:
             return self._settle(rid, new_state, http, f"s2s returned {http}")
         return self._settle(rid, "unknown", http, f"s2s returned {http}")
 
-    def _settle(self, rid: str, state: str, http: Optional[int], error: Optional[str]) -> FinalizeResult:
+    def _settle(self, rid: str, state: str, http: Optional[int], error: Optional[str],
+                count_attempt: bool = True) -> FinalizeResult:
         with self.db.tx() as conn:
             conn.execute(
                 """UPDATE cint_sessions SET transition_state = %s,
+                       transition_attempts = transition_attempts - %s,
                        last_transition_http = %s, last_transition_error = %s,
                        confirmed_at = CASE WHEN %s = 'confirmed' THEN now() END,
                        confirmed_by = CASE WHEN %s = 'confirmed' THEN 's2s_200' END,
                        in_flight_since = NULL, updated_at = now()
                    WHERE rid = %s AND transition_state = 'in_flight'""",
-                (state, http, error, state, state, rid),
+                (state, 0 if count_attempt else 1, http, error, state, state, rid),
             )
         redirect = self._callback(rid) if state == "confirmed" else None
         return FinalizeResult(state, redirect, error or "")
@@ -280,8 +291,9 @@ class RespondentFlow:
         return self.settings.callback_url_template.format(rid=rid)
 
     # 4. Recovery and status -------------------------------------------------------
-    def recover(self) -> dict[str, list[str]]:
-        """Run by a worker after a restart, or periodically."""
+    def recover(self, only_rids: Optional[list[str]] = None) -> dict[str, list[str]]:
+        """Run by a worker after a restart, or periodically. only_rids limits the scan."""
+        scope = [parse_rid(r) for r in only_rids] if only_rids is not None else None
         report: dict[str, list[str]] = {"stale_in_flight": [], "sent": [], "observed": []}
         with self.db.tx() as conn:
             rows = conn.execute(
@@ -290,13 +302,17 @@ class RespondentFlow:
                        in_flight_since = NULL, updated_at = now()
                    WHERE transition_state = 'in_flight'
                      AND in_flight_since < now() - make_interval(secs => %s)
+                     AND (%s::uuid[] IS NULL OR rid = ANY(%s::uuid[]))
                    RETURNING rid""",
-                (self.settings.in_flight_lease_seconds,),
+                (self.settings.in_flight_lease_seconds, scope, scope),
             ).fetchall()
             report["stale_in_flight"] = [str(r["rid"]) for r in rows]
             todo = conn.execute(
                 """SELECT rid, transition_state FROM cint_sessions
-                   WHERE transition_state IN ('pending','unknown') ORDER BY updated_at"""
+                   WHERE transition_state IN ('pending','unknown')
+                     AND (%s::uuid[] IS NULL OR rid = ANY(%s::uuid[]))
+                   ORDER BY updated_at""",
+                (scope, scope),
             ).fetchall()
         for r in todo:
             rid = str(r["rid"])
@@ -328,7 +344,7 @@ class RespondentFlow:
 
     def operator_resolve(self, raw_rid: str, confirmed: bool, operator: str) -> dict[str, Any]:
         """Human decision for an unknown or failed transition, recorded with its author."""
-        rid = str(uuid.UUID(raw_rid))
+        rid = parse_rid(raw_rid)
         return self._resolve(rid, "confirmed" if confirmed else "failed", f"operator:{operator}")
 
     def _resolve(self, rid: str, state: str, by: str) -> dict[str, Any]:

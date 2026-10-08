@@ -8,7 +8,7 @@ This repository is a Cint respondent flow written against EDSL's public human-su
 
 ## One respondent, end to end
 
-EDSL's hosted survey already serves Prolific participants through the same respondent link. The Cint-specific work is respondent validation, outcome reporting, the return redirect, recruitment state and reconciliation.
+In EDSL's Prolific flow the survey is already hosted: `create_prolific_study` returns a `respondent_url` (`coop.py`). The Cint-specific work is respondent validation, outcome reporting, the return redirect, recruitment state and reconciliation.
 
 1. **Entry** `GET /cint/s/{survey}/entry?rid=` calls `GET s2s.cint.com/fulfillment/respondents/{rid}` and admits only `status == 1` with a `links[].href` equal to this survey's entry link. A valid RID presented to another survey is refused.
 2. **Response** is saved once, bound to the RID. The outcome (complete, screenout) is decided on the server from what was saved.
@@ -21,7 +21,7 @@ Proposed attachment points: survey entry (`admit`), response persistence (`save_
 
 Cint's guide says a transition to the status a RID already has returns an error, and that the respondent must not be redirected before a 200. So if Cint applies a completion and the reply is lost, the retry fails and proves nothing. [`test_lost_ack.py`](tests/test_lost_ack.py) reproduces it: the fake commits status 5, drops the reply, the app restarts, the retry gets 422. The test checks that the answers survive, the state stays `unknown`, no confirmation is written, no redirect happens, and the response still converts to EDSL `Results`.
 
-What closes an `unknown` row is explicit: `RespondentFlow.recovery_rule` (empty until Cint confirms which read proves a transition, question 1 below) or `operator_resolve()`, which records who decided. A request that never left the process (connection refused) stays `pending` and is retried safely.
+What closes an `unknown` row is explicit: `RespondentFlow.recovery_rule` (empty until Cint confirms which read proves a transition, question 1 below) or `operator_resolve()`, which records who decided. A request that never left the process (connection refused) stays `pending`, is not counted against the attempt limit, and is retried safely.
 
 ## EDSL's Prolific surface, mapped to Cint
 
@@ -35,7 +35,7 @@ What closes an `unknown` row is explicit: `RespondentFlow.recovery_rule` (empty 
 | `preflight_prolific_study` | No Cint equivalent. EDSL's preflight checks the deployed survey and the credit balance and is, in its own words, not a funds reservation or spending authorization. A Cint estimate does not replace it. | documented |
 | `pause` / `resume` / `stop_prolific_study` | `pause_fielding_run`, `resume_fielding_run`, `complete_fielding_run`: each needs the current ETag in `If-Match`, returns 204, 412 on a stale ETag. Resume only works if the completes goal and end date are not reached. | pause implemented: 412 means reread, then decide again |
 | `get_prolific_study_responses` | None: answers stay on the survey host. Cint only receives the outcome (`update_respondent_status`). | EDSL conversion tested |
-| `approve` / `reject_prolific_study_submission` | Reconciliation, asynchronous (`processing`, `complete`, `failed`). `post_reconciliations`: rejected completes, RID plus reason code. `post_reconciliations_completes`: the **full** list of valid RIDs for a project; any complete left out becomes terminated. Each RID can be reconciled until the end of the 25th of the following month, Central Time. A reversal recalculates quotas and can put the target group back to live. | documented only |
+| `approve` / `reject_prolific_study_submission` | Reconciliation, asynchronous (`processing`, `complete`, `failed`). `post_reconciliations`: per-RID positive or negative reconciliation, each line a RID and a reason code (one file can mix both). `post_reconciliations_completes`: RIDs to keep as completes for a project; per the reconciliation guide, this is the **full** list, and any complete left out becomes terminated. Each RID can be reconciled until the end of the 25th of the following month, Central Time. A reversal recalculates quotas and can put the target group back to live. | documented only |
 
 Respondent-level calls have no Prolific counterpart: `get_respondent_status` and `update_respondent_status` on `s2s.cint.com`. Webhooks are managed with `create_webhook`.
 
@@ -44,7 +44,7 @@ Respondent-level calls have no Prolific counterpart: `get_respondent_status` and
 - **Two clients, two hosts.** Demand API: `api.cint.com/v1`, bearer JWT, `Cint-API-Version`. S2S: `s2s.cint.com`, the raw S2S key in `Authorization`, no version header. Separate classes, separate base URLs.
 - **Three code systems.** S2S transition codes (complete 5, screenout 2, quality terminate 4, quota full 3), the S2S GET status (only 1 = in survey is documented), and client report codes (10, 20, 30, 40). [`outcomes.py`](cint_ref/outcomes.py) keeps them apart and never reads a GET value as a final outcome.
 - **Launch is a job.** A 201 is not a launch.
-- **Approval is not per submission.** The approved-completes list replaces, it does not add.
+- **Approval is implicit.** A complete stands unless it is reversed; the project-level completes list replaces, it does not add.
 - **Redirect security.** This reference implements Cint's recommended S2S flow and verifies webhook signatures separately; any redirect hashing follows the configuration Cint supplies.
 
 ## State in PostgreSQL
@@ -69,8 +69,8 @@ Respondent-level calls have no Prolific counterpart: `get_respondent_status` and
 | `href` match rule (same scheme, host, path, `rid` value) | local policy |
 | Webhook signature `HMAC-SHA256(secret, "t." + body)`, secret used as given | published contract, checked against the spec's own vector |
 | Ack body `{"event_id": <CloudEvents id>}` | published contract (exact key shape to confirm) |
-| `response_session_id` in session webhooks equals the entry RID | assumption to confirm |
-| Signature freshness window (off by default) | local policy |
+| `response_session_id` in session webhooks equals the entry RID (if not a UUID, the event is stored without effect and still acknowledged) | assumption to confirm |
+| Signature freshness window (off by default; when on, also rejects `t` more than 60 s in the future) | local policy |
 | Demand: 202 project, 201 draft, 201 job with `Location`, `Processing` / `Completed` / `Failed`, ETag `W/"n"`, 412, 422, 204 | published contract |
 | Missing `Idempotency-Key` returns 400 | assumption (required is published, the error code is not) |
 

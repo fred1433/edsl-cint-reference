@@ -56,7 +56,7 @@ def main() -> None:
         if scenario == "lost acknowledgment":
             print("  -- restart --")
             app, client = boot()
-            app.state.flow.recover()
+            app.state.flow.recover(only_rids=[rid])  # only this run's respondent
             state = client.get(f"/cint/sessions/{rid}").json()
             print(f"  after recovery: state={state['transition_state']} "
                   f"last_http={state['last_transition_http']} confirmed_by={state['confirmed_by']}")

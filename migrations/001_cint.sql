@@ -1,5 +1,5 @@
 -- Minimal durable state for the behaviour this reference implements.
--- Each constraint says what it protects; see README "Why each table exists".
+-- Each constraint says what it protects; see README "State in PostgreSQL".
 
 CREATE TABLE IF NOT EXISTS cint_sessions (
     -- One row per Cint RID: a RID can be admitted once and is bound to one survey.
